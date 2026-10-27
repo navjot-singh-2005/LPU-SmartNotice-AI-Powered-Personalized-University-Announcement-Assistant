@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LPU SmartNotice — AI Personalized Announcement Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-icon">🔔</div>
+                <div class="brand-text">
+                    <h1>LPU SmartNotice</h1>
+                    <span>AI Announcement Hub</span>
+                </div>
+            </div>
+
+            <!-- Student Profile Selector -->
+            <div class="profile-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label for="studentSelector" style="margin-bottom: 0;">Active Student Context:</label>
+                    <div style="display: flex; gap: 4px;">
+                        <button type="button" class="btn-student-action" id="btnAddStudent" onclick="openAddStudentModal()" title="Add New Student Profile">➕ Add</button>
+                        <button type="button" class="btn-student-action" id="btnEditStudent" onclick="openEditStudentModal()" title="Edit Current Student Profile">✏️ Edit</button>
+                    </div>
+                </div>
+                <select id="studentSelector" onchange="onStudentChange()">
+                    <!-- Options populated dynamically -->
+                </select>
+                <div id="studentDetails" class="student-meta">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-item active" onclick="switchTab('feedTab', event)">
+                    <span class="icon">✨</span> Personalized Feed
+                </button>
+                <button class="nav-item" onclick="switchTab('chatTab', event)">
+                    <span class="icon">💬</span> AI Assistant (RAG)
+                </button>
+                <button class="nav-item" onclick="switchTab('searchTab', event)">
+                    <span class="icon">🔍</span> Search & Browse
+                </button>
+                <button class="nav-item" onclick="switchTab('timetableTab', event)">
+                    <span class="icon">📅</span> Room & Timetable Impact
+                </button>
+                <button class="nav-item" onclick="switchTab('healthTab', event)">
+                    <span class="icon">📊</span> System Dashboard
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="status-indicator">
+                    <span class="status-dot green"></span>
+                    <span id="apiStatusText">System Ready</span>
+                </div>
+                <a href="/docs" target="_blank" class="api-docs-link">API Swagger Docs ↗</a>
+            </div>
+        </aside>
+
+        <!-- Mobile Header Bar -->
+        <div class="mobile-header">
+            <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileSidebar()" aria-label="Toggle Navigation Menu">☰</button>
+            <div class="mobile-brand">
+                <span class="mobile-logo">🔔</span>
+                <span class="mobile-title">LPU SmartNotice</span>
+            </div>
+            <div class="status-indicator">
+                <span class="status-dot green"></span>
+            </div>
+        </div>
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileSidebar(false)"></div>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- DEDICATED FULL NOTICE DETAIL VIEW -->
+            <section id="noticeDetailTab" class="tab-content notice-detail-page">
+                <header class="content-header detail-view-header">
+                    <button class="btn btn-secondary btn-back-feed" onclick="returnFromNoticeDetail()">
+                        <span>←</span> Back to Previous View
+                    </button>
+                    <div class="detail-header-actions">
+                        <button class="btn btn-secondary" id="btnCopyNoticeLink" onclick="copyCurrentNoticeLink()">
+                            <span>🔗</span> Copy Direct Link
+                        </button>
+                        <a id="btnExternalUmsLink" href="#" target="_blank" class="btn btn-secondary" style="display:none;">
+                            <span>🏛️</span> Open in UMS ↗
+                        </a>
+                    </div>
+                </header>
+                <div id="noticeDetailViewContainer" class="notice-detail-container">
+                    <div class="loading-spinner">Loading complete announcement circular...</div>
+                </div>
+            </section>
+
+            <!-- TAB 1: PERSONALIZED FEED -->
+            <section id="feedTab" class="tab-content active">
+                <header class="content-header">
+                    <div>
+                        <h2>Personalized Announcement Feed</h2>
+                        <p class="subtitle">AI-ranked announcements tailored to your year, program, department & interests.</p>
+                    </div>
+                    <div class="header-actions">
+                        <select id="feedCategoryFilter" onchange="loadPersonalizedFeed(1)">
+                            <option value="">All Categories</option>
+                            <option value="UMS_LIVE">⚡ Real-Time Live Notices Only</option>
+                            <option value="ACADEMIC">Academic</option>
+                            <option value="PLACEMENT">Placements</option>
+                            <option value="EXAMINATION">Examinations</option>
+                            <option value="EVENT">Events</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="loadPersonalizedFeed(1)">🔄 Refresh Feed</button>
+                    </div>
+                </header>
+
+                <!-- UMS Live Sync Status Banner -->
+                <div class="ums-sync-widget" id="umsSyncWidget">
+                    <div class="ums-status-info">
+                        <span style="font-size: 20px;">🏛️</span>
+                        <div>
+                            <strong>LPU UMS Sync:</strong>
+                            <span class="ums-status-badge mock" id="umsStatusBadge">Checking...</span>
+                            <span style="font-size:12px; color:var(--text-secondary); margin-left:8px;" id="umsLastSyncText">Last Synced: Checking...</span>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn btn-primary" id="umsSyncBtn" onclick="triggerUmsSync()">
+                            <span>⚡</span> Sync Notices
+                        </button>
+                        <button class="btn btn-secondary" onclick="openUmsSetupModal()">
+                            <span>⚙️</span> Portal Live Setup
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Applicability & Deadline Filter Pills -->
+                <div class="filter-pills-bar" id="feedTierFilters">
+                    <button class="pill-btn active" id="pillAll" onclick="setFeedApplicability('ALL', event)">
+                        All Notices <span class="pill-badge" id="badgeAll">--</span>
+                    </button>
+                    <button class="pill-btn" id="pillApplicable" onclick="setFeedApplicability('APPLICABLE', event)">
+                        🎯 Applicable <span class="pill-badge" id="badgeApplicable">--</span>
+                    </button>
+                    <button class="pill-btn" id="pillRelevant" onclick="setFeedApplicability('RELEVANT', event)">
+                        💡 Relevant <span class="pill-badge" id="badgeRelevant">--</span>
+                    </button>
+                    <button class="pill-btn" id="pillUrgent" onclick="setFeedApplicability('URGENT', event)">
+                        ⚡ Urgent <span class="pill-badge" id="badgeUrgent">--</span>
+                    </button>
+                    <button class="pill-btn" id="pillDeadlines" onclick="setFeedApplicability('DEADLINES', event)">
+                        ⏳ Active Deadlines <span class="pill-badge" id="badgeDeadlines">--</span>
+                    </button>
+                    <button class="pill-btn" id="pillGeneral" onclick="setFeedApplicability('GENERAL', event)">
+                        📢 General <span class="pill-badge" id="badgeGeneral">--</span>
+                    </button>
+                </div>
+
+                <div id="feedList" class="cards-grid">
+                    <div class="loading-spinner">Loading personalized feed...</div>
+                </div>
+
+                <div class="pagination" id="feedPagination"></div>
+            </section>
+
+            <!-- TAB 2: AI ASSISTANT CHATBOT -->
+            <section id="chatTab" class="tab-content">
+                <header class="content-header">
+                    <div>
+                        <h2>Grounded RAG Assistant</h2>
+                        <p class="subtitle">Ask questions about LPU notices. Answers are strictly grounded in retrieved evidence with citations.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="clearChatHistory()" title="Reset conversation memory">
+                            🗑️ Clear Chat
+                        </button>
+                    </div>
+                </header>
+
+                <div class="chat-wrapper">
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="message assistant-message">
+                            <div class="avatar">🤖</div>
+                            <div class="message-body">
+                                <p>Hello! I am your LPU SmartNotice assistant. Ask me anything about university announcements, exam timetables, or placement drives.</p>
+                                <div class="sample-chips">
+                                    <button class="chip" onclick="sendQuickChat('When are 3rd year B.Tech exams starting?')">When are 3rd year B.Tech exams starting?</button>
+                                    <button class="chip" onclick="sendQuickChat('Are there placement drives for Software Engineers?')">Are there placement drives for Software Engineers?</button>
+                                    <button class="chip" onclick="sendQuickChat('What announcements affect Block 34?')">What announcements affect Block 34?</button>
+                                    <button class="chip" onclick="sendQuickChat('What is the upcoming deadline for fee payments?')">What is the upcoming deadline for fee payments?</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chat-input-area">
+                        <div class="attachment-warning-banner" id="chatAttachmentBanner" style="display:none;"></div>
+                        <form onsubmit="handleChatSubmit(event)" class="chat-form">
+                            <input type="text" id="chatInput" placeholder="Ask about LPU announcements..." autocomplete="off" required>
+                            <button type="submit" class="btn btn-primary" id="chatSendBtn">Send 🚀</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: SEARCH & BROWSE -->
+            <section id="searchTab" class="tab-content">
+                <header class="content-header">
+                    <div>
+                        <h2>Search Historical Announcements</h2>
+                        <p class="subtitle">Perform hybrid semantic and exact keyword search across 7,370+ notices.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="resetSearchFilters()">Reset Filters</button>
+                    </div>
+                </header>
+
+                <!-- Rich Search & Browse Toolbar -->
+                <div class="search-toolbar">
+                    <div class="search-toolbar-row">
+                        <input type="text" id="searchInput" style="flex: 1; min-width: 240px;" placeholder="Search keywords, room (e.g. 34-105), ref number, company..." onkeyup="if(event.key==='Enter') executeSearch(1)">
+                        <button class="btn btn-primary" onclick="executeSearch(1)">Search 🔍</button>
+                    </div>
+                    <div class="search-toolbar-row">
+                        <select id="searchCategorySelect" onchange="executeSearch(1)">
+                            <option value="">All Categories</option>
+                            <option value="ACADEMIC">Academic</option>
+                            <option value="PLACEMENT">Placements</option>
+                            <option value="EXAMINATION">Examinations</option>
+                            <option value="EVENT">Events</option>
+                            <option value="ADMINISTRATIVE">Administrative</option>
+                            <option value="HOSTEL">Hostel & Residential</option>
+                        </select>
+                        <select id="searchUrgencySelect" onchange="executeSearch(1)">
+                            <option value="">All Urgency Levels</option>
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH">High</option>
+                            <option value="CRITICAL">Critical</option>
+                        </select>
+                        <select id="searchSortSelect" onchange="executeSearch(1)">
+                            <option value="relevance">Sort: Relevance (RRF)</option>
+                            <option value="newest">Sort: Newest Date</option>
+                            <option value="oldest">Sort: Oldest Date</option>
+                        </select>
+                        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text-secondary); cursor:pointer;">
+                            <input type="checkbox" id="searchAttachmentOnly" onchange="executeSearch(1)">
+                            <span>📎 With Attachments Only</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="searchResults" class="cards-grid">
+                    <div class="empty-state">Enter a query above to search announcements.</div>
+                </div>
+
+                <div class="pagination" id="searchPagination"></div>
+            </section>
+
+            <!-- TAB 4: ROOM & TIMETABLE IMPACT -->
+            <section id="timetableTab" class="tab-content">
+                <header class="content-header">
+                    <div>
+                        <h2>Room & Timetable Conflict Analysis</h2>
+                        <p class="subtitle">Check if your scheduled classes are affected by venue changes, exams, or room suspensions.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="loadAffectedClasses()">🔄 Check Conflict Impact</button>
+                    </div>
+                </header>
+
+                <!-- Timetable Impact Filter Pills -->
+                <div class="filter-pills-bar" id="timetableFilters">
+                    <button class="pill-btn active" onclick="filterTimetable('ALL', event)">All Classes (<span id="ttCountAll">--</span>)</button>
+                    <button class="pill-btn" onclick="filterTimetable('RED', event)">🚨 Conflicts (<span id="ttCountRed">--</span>)</button>
+                    <button class="pill-btn" onclick="filterTimetable('AMBER', event)">⚠️ Needs Verification (<span id="ttCountAmber">--</span>)</button>
+                    <button class="pill-btn" onclick="filterTimetable('EXEMPTED', event)">🛡️ Exempted (<span id="ttCountExempted">--</span>)</button>
+                    <button class="pill-btn" onclick="filterTimetable('GREEN', event)">✅ No Conflict (<span id="ttCountGreen">--</span>)</button>
+                </div>
+
+                <div id="timetableList" class="timetable-grid">
+                    <div class="loading-spinner">Click check to analyze timetable...</div>
+                </div>
+            </section>
+
+            <!-- TAB 5: SYSTEM DASHBOARD -->
+            <section id="healthTab" class="tab-content">
+                <header class="content-header">
+                    <div>
+                        <h2>System Health & Dataset Dashboard</h2>
+                        <p class="subtitle">Subsystem status, dataset metrics, persistent ChromaDB vector store, and AI model health.</p>
+                    </div>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="triggerCacheReload()">⚡ Reload Cache</button>
+                        <button class="btn btn-secondary" onclick="loadHealthDashboard()">🔄 Refresh Metrics</button>
+                    </div>
+                </header>
+
+                <!-- Subsystem Health Strip -->
+                <div class="subsystem-strip" id="subsystemHealthStrip">
+                    <div class="subsystem-chip" id="chipFastAPI">⚡ FastAPI: <strong style="color:#34d399;">Running</strong></div>
+                    <div class="subsystem-chip" id="chipSQLite">🗄️ SQLite: <strong id="sqliteStatusText" style="color:#34d399;">Connected</strong></div>
+                    <div class="subsystem-chip" id="chipChroma">📐 ChromaDB: <strong id="chromaStatusText" style="color:#34d399;">Ready</strong></div>
+                    <div class="subsystem-chip" id="chipGemini">🤖 Google GenAI: <strong id="geminiStatusText" style="color:#38bdf8;">Configured</strong></div>
+                </div>
+
+                <div class="metrics-grid" id="metricsGrid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="metricTotal">--</div>
+                        <div class="metric-label">Total Announcements</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="metricFull" style="color:#34d399;">--</div>
+                        <div class="metric-label">Complete Full Notices</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="metricPartial" style="color:#fbbf24;">--</div>
+                        <div class="metric-label">Brief Previews</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="metricAttachments">--</div>
+                        <div class="metric-label">With Attachments</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="metricIndexed">--</div>
+                        <div class="metric-label">ChromaDB Indexed</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="metricLastSync" style="font-size:16px; font-weight:600; color:#38bdf8; margin-top:4px;">--</div>
+                        <div class="metric-label">Latest Sync Status</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-details">
+                    <div class="detail-box">
+                        <h3>📁 Dataset Health Report</h3>
+                        <pre id="datasetReportPre">Loading...</pre>
+                    </div>
+                    <div class="detail-box">
+                        <h3>📐 Persistent Vector Index</h3>
+                        <pre id="indexStatusPre">Loading...</pre>
+                    </div>
+                    <div class="detail-box" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.7)); border: 1px solid rgba(99, 102, 241, 0.25);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;">
+                            <div>
+                                <h3 style="margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+                                    <span>🔄</span> Notice Full-Detail Backfill &amp; Content Repair
+                                </h3>
+                                <p style="font-size:12px; color:var(--text-secondary); margin:0;">
+                                    Scans for notices stored as brief summaries or previews, queries authorized UMS sources for complete details, updates database records with full circular text, and refreshes vector embeddings.
+                                </p>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <label style="font-size:12px; color:var(--text-secondary);">Batch:</label>
+                                <select id="backfillLimitSelect" style="padding:6px 10px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); border-radius:6px; font-size:12px;">
+                                    <option value="20">20 Notices</option>
+                                    <option value="50" selected>50 Notices</option>
+                                    <option value="100">100 Notices</option>
+                                </select>
+                                <button class="btn btn-primary" id="btnRunBackfill" onclick="triggerNoticeBackfill()">
+                                    <span>⚡</span> Run Safe Backfill
+                                </button>
+                            </div>
+                        </div>
+                        <div id="backfillStatusOutput" style="display:none; font-size:12px; padding:10px 14px; border-radius:6px; background:rgba(16, 185, 129, 0.1); border:1px solid rgba(16, 185, 129, 0.3); color:#34d399;"></div>
+                    </div>
+                    <div class="detail-box" style="grid-column: 1 / -1;">
+                        <h3>🏛️ UMS Ingestion & Sync Audit Log</h3>
+                        <div id="umsSyncHistoryContent">Loading history...</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Announcement Detail Modal -->
+    <div id="announcementModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- UMS Portal Live Setup Modal -->
+    <div id="umsSetupModal" class="modal">
+        <div class="modal-content" style="max-width: 720px;">
+            <span class="close-modal" onclick="closeUmsSetupModal()">&times;</span>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                <span style="font-size: 32px;">🏛️</span>
+                <div>
+                    <h2 style="font-size: 20px; font-weight: 700;">Connect Real-Time Official LPU UMS</h2>
+                    <p style="font-size: 13px; color: var(--text-secondary);">
+                        The official portal (<code>ums.lpu.in</code>) is secured with Cloudflare Bot Mitigation &amp; ASP.NET Student Session Auth.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Setup Tabs Navigation -->
+            <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
+                <button class="nav-item active" id="tabBtnPaste" onclick="switchSetupTab('pasteTab')" style="padding: 8px 16px; font-size: 13px;">
+                    📋 Paste Notices (Instant)
+                </button>
+                <button class="nav-item" id="tabBtnBrowser" onclick="switchSetupTab('browserTab')" style="padding: 8px 16px; font-size: 13px;">
+                    ⚡ 1-Click Browser Sync
+                </button>
+                <button class="nav-item" id="tabBtnCookie" onclick="switchSetupTab('cookieTab')" style="padding: 8px 16px; font-size: 13px;">
+                    ⚙️ Mode &amp; Cookie
+                </button>
+            </div>
+
+            <!-- TAB 1: PASTE ANNOUNCEMENTS -->
+            <div id="setupTabPaste" class="setup-tab-pane">
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); padding: 14px; margin-bottom: 14px;">
+                    <h4 style="font-size: 14px; font-weight: 700; color: #34d399; margin-bottom: 6px;">
+                        ✨ Easiest Method: Copy &amp; Paste Live Announcements
+                    </h4>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 0;">
+                        Open <a href="https://ums.lpu.in/lpuums/" target="_blank" style="color:var(--accent-color); font-weight:600;">ums.lpu.in</a>, copy the announcement text, table rows, or HTML from your portal, and paste it below. SmartNotice automatically parses, tags, and indexes each notice!
+                    </p>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">Paste Announcement Text, HTML Table, or JSON:</label>
+                    <button class="btn btn-secondary" onclick="loadSampleLiveNotice()" style="font-size: 11px; padding: 3px 8px;">Load Sample Notice</button>
+                </div>
+                <textarea id="pastedNoticeInput" rows="6" placeholder="Example:&#10;Title: Mid-Term Practical Exam Schedule Autumn 2026&#10;Ref No: LPU/EXAM/2026/108&#10;Date: 16-Oct-2026&#10;All students are informed that practicals for CSE301 will be held in Block 34..." style="width: 100%; padding: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-family: inherit; font-size: 13px; outline: none; margin-bottom: 12px; resize: vertical;"></textarea>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <button class="btn btn-primary" id="pasteIngestBtn" onclick="submitPastedNotice()">
+                        <span>✨</span> Ingest Real-Time Notices Now
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 2: 1-CLICK BROWSER SYNC -->
+            <div id="setupTabBrowser" class="setup-tab-pane" style="display: none;">
+                <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: var(--radius-md); padding: 14px; margin-bottom: 14px;">
+                    <h4 style="font-size: 14px; font-weight: 700; color: #a5b4fc; margin-bottom: 6px;">
+                        ⚡ 1-Click Live Browser Extractor (Bypasses Cloudflare)
+                    </h4>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 0;">
+                        Because your browser is already authenticated and past Cloudflare, this snippet fetches or scrapes your live notices and pushes them directly into SmartNotice via CORS.
+                    </p>
+                </div>
+
+                <ol style="font-size: 12px; color: var(--text-secondary); margin-left: 18px; margin-bottom: 12px; line-height: 1.6;">
+                    <li>Log into <a href="https://ums.lpu.in/lpuums/" target="_blank" style="color:var(--accent-color); font-weight:600;">ums.lpu.in</a> in another tab.</li>
+                    <li>Press <kbd style="background:var(--bg-primary); border:1px solid var(--border-color); padding:1px 5px; border-radius:3px;">F12</kbd> (or right click -> <em>Inspect</em>) and open the <strong>Console</strong> tab.</li>
+                    <li>Paste the snippet below and press <kbd style="background:var(--bg-primary); border:1px solid var(--border-color); padding:1px 5px; border-radius:3px;">Enter</kbd>.</li>
+                </ol>
+
+                <div style="position: relative; margin-bottom: 12px;">
+                    <pre id="consoleSnippet" style="background: var(--bg-primary); padding: 12px; border-radius: 6px; font-size: 11px; color: #38bdf8; overflow-x: auto; border: 1px solid var(--border-color); white-space: pre-wrap; max-height: 140px;">(async()=>{try{let n=[];const ep=['/lpuums/StudentDashboard.aspx/AnnouncementDetails','/lpuums/frmStudentDashboard.aspx/AnnouncementDetails'];for(const u of ep){try{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json;charset=utf-8'},body:JSON.stringify({pageSize:50})});if(r.ok){const d=await r.json(),i=d.d||d;const raw=typeof i==='string'?JSON.parse(i):i;const list=Array.isArray(raw)?raw:(raw.Table||raw.announcements||raw.data||raw.items||[]);if(Array.isArray(list)&&list.length){n=list;break;}}}catch(e){}}if(!n.length){document.querySelectorAll('table tbody tr').forEach((tr,i)=>{const c=Array.from(tr.querySelectorAll('td')).map(td=>td.innerText.trim()).filter(Boolean);if(c.length>=2){const d=c.find(x=>/\d{1,2}[-/.]\w{3,}[-/.]\d{2,4}|\d{4}-\d{2}-\d{2}/.test(x))||new Date().toISOString().slice(0,10);const ref=c.find(x=>/LPU|REF|ANN/i.test(x))||('UMS-ROW-'+(i+1));n.push({title:c[1]||c[0],full_content:c.join(' \n '),publication_date:d,reference_number:ref});}});}if(!n.length){document.querySelectorAll('.card, .announcement-box, .notice-item, [class*="announcement"], [id*="announcement"]').forEach((el,i)=>{const t=el.innerText.trim();if(t.length>20){const lines=t.split('\n').map(l=>l.trim()).filter(Boolean);const h=el.querySelector('h1,h2,h3,h4,strong,b');n.push({title:h?h.innerText.trim():lines[0],full_content:t,publication_date:new Date().toISOString().slice(0,10),reference_number:'UMS-CARD-'+(i+1)});}});}if(!n.length){n=[{title:document.title||'UMS Announcement',full_content:document.body.innerText.slice(0,4000),publication_date:new Date().toISOString().slice(0,10),reference_number:'UMS-LIVE-'+Date.now()}];}const res=await fetch('http://localhost:8000/api/v1/ums/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({announcements:n})});const resJson=await res.json();let msg='';if(resJson.inserted_count>0){msg='🎉 Successfully synced '+resJson.inserted_count+' new notices into LPU SmartNotice!'+(resJson.updated_count?' ('+resJson.updated_count+' revised)':'');}else if(resJson.skipped_count>0){msg='⚡ All '+resJson.skipped_count+' announcements are already up to date in SmartNotice! (0 new, '+resJson.skipped_count+' current)';}else if(resJson.updated_count>0){msg='🔄 Updated '+resJson.updated_count+' revised announcement(s) in SmartNotice!';}else{msg='ℹ️ '+(resJson.message||'Sync completed.');}alert(msg);}catch(err){alert('⚠️ Sync error: '+err.message+' (Ensure SmartNotice is running on http://localhost:8000)');}})();</pre>
+                    <button class="feedback-btn" onclick="copyConsoleSnippet()" style="position: absolute; top: 8px; right: 8px; background: var(--bg-surface); padding: 4px 10px; font-size: 11px;">📋 Copy Snippet</button>
+                </div>
+            </div>
+
+            <!-- TAB 3: MODE & COOKIE SETTINGS -->
+            <div id="setupTabCookie" class="setup-tab-pane" style="display: none;">
+                <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; margin-bottom: 14px;">
+                    <h4 style="font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 6px;">
+                        🔑 Direct Connector Mode &amp; Cookie
+                    </h4>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                        Configure whether SmartNotice operates in <strong>Simulated Mock Mode</strong> (offline test notices) or <strong>Live Mode</strong>.
+                    </p>
+
+                    <div style="display: flex; gap: 16px; margin-bottom: 14px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+                            <input type="radio" name="connectorModeRadio" value="mock" id="modeRadioMock">
+                            <span>Simulated Mock Mode</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+                            <input type="radio" name="connectorModeRadio" value="live" id="modeRadioLive">
+                            <span>Live UMS Mode</span>
+                        </label>
+                    </div>
+
+                    <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px;">
+                        UMS Session Cookie (Include <code>ASP.NET_SessionId</code> &amp; <code>cf_clearance</code>):
+                    </label>
+                    <textarea id="manualCookieInput" rows="3" placeholder="ASP.NET_SessionId=...; cf_clearance=..." style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-family: monospace; font-size: 12px; outline: none; margin-bottom: 12px;"></textarea>
+
+                    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                        <button class="btn btn-primary" onclick="submitManualCookie()">Save Settings &amp; Sync</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add / Edit Student Profile Modal -->
+    <div id="studentModal" class="modal">
+        <div class="modal-content" style="max-width: 820px; width: 92%;">
+            <span class="close-modal" onclick="closeStudentModal()">&times;</span>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                <span id="studentModalIcon" style="font-size: 28px;">👤</span>
+                <div>
+                    <h2 id="studentModalTitle" style="font-size: 19px; font-weight: 700; margin: 0;">Add Student Profile</h2>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin: 3px 0 0 0;">Manage student context and weekly timetable for personalized notice feed &amp; conflict checks.</p>
+                </div>
+            </div>
+
+            <div id="studentModalAlert" style="display: none; padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 13px;"></div>
+
+            <form id="studentForm" onsubmit="handleStudentFormSubmit(event)">
+                <input type="hidden" id="studentFormMode" value="add">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Student ID / Reg No *</label>
+                        <input type="text" id="stuInputId" required placeholder="e.g. STU-105" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                        <small id="stuIdHelp" style="font-size: 11px; color: var(--text-muted); display: block; margin-top: 2px;">Unique ID (cannot be changed once created)</small>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Full Name *</label>
+                        <input type="text" id="stuInputName" required placeholder="e.g. Rahul Sharma" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Email Address</label>
+                        <input type="email" id="stuInputEmail" placeholder="e.g. rahul.sharma@lpu.in" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Section / Batch</label>
+                        <input type="text" id="stuInputSection" placeholder="e.g. K22AB" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Program / Degree *</label>
+                    <input type="text" id="stuInputProgram" required placeholder="e.g. B.Tech Computer Science &amp; Engineering" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Department *</label>
+                        <input type="text" id="stuInputDepartment" required placeholder="e.g. Department of Computer Science" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">School *</label>
+                        <input type="text" id="stuInputSchool" required placeholder="e.g. School of Computer Science and Engineering" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Academic Year (1-10) *</label>
+                        <input type="number" id="stuInputYear" required min="1" max="10" value="1" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Semester (1-20) *</label>
+                        <input type="number" id="stuInputSemester" required min="1" max="20" value="1" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Interests (Comma-separated)</label>
+                    <input type="text" id="stuInputInterests" placeholder="e.g. AI/ML, Web Development, Competitive Programming, Placements" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">Career Goal</label>
+                    <input type="text" id="stuInputCareer" placeholder="e.g. Software Development Engineer" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); font-size: 13px; outline: none;">
+                </div>
+
+                <!-- Timetable Management Section inside Modal -->
+                <div style="border-top: 1px solid var(--border-color); padding-top: 14px; margin-bottom: 18px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div>
+                            <div style="font-size: 14px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                                <span>📅 Timetable &amp; Class Schedule</span>
+                                <span id="ttModalCountBadge" class="badge" style="background: rgba(99, 102, 241, 0.2); color: var(--accent-color); font-size: 11px; padding: 2px 8px; border-radius: 12px;">0 classes</span>
+                            </div>
+                            <p style="font-size: 11px; color: var(--text-secondary); margin: 3px 0 0 0;">Add class schedules to automatically detect room exemptions, venue changes, and conflicts against university notices.</p>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="addTimetableRow()" style="font-size: 12px; padding: 6px 12px; display: inline-flex; align-items: center; gap: 4px;">
+                            <span>➕</span> Add Timetable Entry
+                        </button>
+                    </div>
+
+                    <!-- Live Conflict Detection Warning in Modal -->
+                    <div id="modalTimetableConflictAlert" style="display: none; padding: 10px 14px; border-radius: 6px; margin-bottom: 10px; font-size: 12px; background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.4); color: #fda4af;"></div>
+
+                    <!-- Timetable Column Headers -->
+                    <div style="display: grid; grid-template-columns: 115px 95px 95px 95px 1fr 85px 36px; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; padding: 0 4px;">
+                        <div>Day *</div>
+                        <div>Start *</div>
+                        <div>End *</div>
+                        <div>Code *</div>
+                        <div>Subject Name *</div>
+                        <div>Room *</div>
+                        <div></div>
+                    </div>
+
+                    <div id="timetableRowsContainer" style="display: flex; flex-direction: column; gap: 8px; max-height: 270px; overflow-y: auto; padding: 2px 4px 6px 2px;">
+                        <!-- Dynamic timetable entries rendered here -->
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeStudentModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="btnSaveStudent">
+                        <span id="btnSaveStudentText">Save Student</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

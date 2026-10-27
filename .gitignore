@@ -1,0 +1,37 @@
+# Environment & Secrets
+.env
+.env.local
+
+# Virtual Environment
+.venv/
+.venv_new/
+env/
+venv/
+
+# Session & Token Files
+*.session
+*.tokens
+tokens/
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Storage & Runtime Data
+storage/
+data/*.json
+!data/all_announcements_with_attachment_flag.json
+!data/.gitkeep
+
+# Backups
+backup_*/
+
+# Logs & Editor
+*.log
+logs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
